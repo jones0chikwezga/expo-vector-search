@@ -1,19 +1,49 @@
 {
     "name": "expo-vector-search",
     "version": "0.1.0",
-    "description": "A high-performance vector search module for Expo",
+    "description": "A high-performance vector search module for Expo powered by USearch",
     "main": "index.ts",
     "types": "index.ts",
     "scripts": {
         "build": "expo-module build",
-        "clean": "expo-module clean"
+        "clean": "expo-module clean",
+        "prepack": "npm run clean && npm run build"
     },
     "keywords": [
         "react-native",
         "expo",
         "vector-search",
-        "usearch"
+        "usearch",
+        "hnsw",
+        "jsi",
+        "on-device-ml"
     ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mensonones/expo-vector-search.git",
+        "directory": "modules/expo-vector-search"
+    },
+    "bugs": {
+        "url": "https://github.com/mensonones/expo-vector-search/issues"
+    },
+    "homepage": "https://github.com/mensonones/expo-vector-search/tree/main/modules/expo-vector-search#readme",
     "author": "Emerson Vieira",
-    "license": "MIT"
+    "license": "MIT",
+    "files": [
+        "android/src",
+        "android/CMakeLists.txt",
+        "android/build.gradle",
+        "ios",
+        "src",
+        "build",
+        "expo-module.config.json",
+        "index.ts"
+    ],
+    "peerDependencies": {
+        "expo": "*",
+        "react-native": "*"
+    },
+    "devDependencies": {
+        "expo-module-scripts": "^5.0.8"
+    }
 }

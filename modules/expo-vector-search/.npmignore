@@ -1,0 +1,28 @@
+# Native build artifacts (Android)
+**/.cxx/
+**/.gradle/
+**/build/
+**/obj/
+**/*.aar
+
+# Native build artifacts (iOS)
+**/Pods/
+**/DerivedData/
+**/*.xcworkspace/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development files
+tsconfig.json
+.eslint*
+.prettier*
+*.tgz
