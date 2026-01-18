@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 # Disable external FP16 library requirement (use native or fallback)
 add_compile_definitions(USEARCH_USE_FP16LIB=0)
 
-# 2. Baixar e Configurar o USearch
+# 2. Download and Configure USearch
 include(FetchContent)
 
 FetchContent_Declare(
@@ -16,10 +16,10 @@ FetchContent_Declare(
   GIT_TAG        v2.9.0 # Use a recent stable version
 )
 
-# Disponibiliza o usearch para o projeto
+# Make usearch available to the project
 FetchContent_MakeAvailable(usearch)
 
-# 3. Definir sua biblioteca compartilhada
+# 3. Define the shared library
 add_library(
   expo-vector-search
   SHARED
@@ -35,7 +35,7 @@ target_include_directories(
   ${usearch_SOURCE_DIR}/include
 )
 
-# 5. Linkar bibliotecas (Log do Android e bibliotecas do JS Engine)
+# 5. Link libraries (Android Log and JS Engine libraries)
 # Important: React Native uses Prefab, so we need to find the ReactAndroid package
 find_package(ReactAndroid REQUIRED CONFIG)
 
