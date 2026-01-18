@@ -6,8 +6,7 @@
     "types": "index.ts",
     "scripts": {
         "build": "expo-module build",
-        "clean": "expo-module clean",
-        "prepack": "npm run clean && npm run build"
+        "clean": "expo-module clean"
     },
     "keywords": [
         "react-native",

@@ -50,6 +50,7 @@ modules/**/ios/Pods/
 modules/**/ios/build/
 modules/**/node_modules/
 modules/**/dist/
+modules/**/package-lock.json
 
 
 # Data Generation Artifacts
