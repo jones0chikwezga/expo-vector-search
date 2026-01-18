@@ -45,7 +45,7 @@ This repository is organized as a monorepo-style Expo project:
 ### Prerequisites
 
 - Node.js and npm/yarn.
-- Expo Go or Development Build environment.
+- Development Build environment (required for custom native modules).
 
 ### Installation
 
