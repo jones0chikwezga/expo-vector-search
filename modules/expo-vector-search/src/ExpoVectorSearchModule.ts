@@ -49,10 +49,10 @@ export class VectorIndex {
    * @throws Error if the native JSI module is not available.
    */
   constructor(dimensions: number, options?: VectorIndexOptions) {
-    if (!global.ExpoVectorSearch) {
+    if (!globalThis.ExpoVectorSearch) {
       throw new Error("ExpoVectorSearch JSI module is not available.");
     }
-    this._index = global.ExpoVectorSearch.createIndex(dimensions, options);
+    this._index = globalThis.ExpoVectorSearch.createIndex(dimensions, options);
   }
 
   /**

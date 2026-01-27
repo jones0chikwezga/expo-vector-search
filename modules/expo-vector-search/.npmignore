@@ -1,7 +1,8 @@
 # Native build artifacts (Android)
 **/.cxx/
 **/.gradle/
-**/build/
+**/android/build/
+**/ios/build/
 **/obj/
 **/*.aar
 
