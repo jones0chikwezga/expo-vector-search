@@ -22,6 +22,8 @@ interface VectorIndexHostObject {
   load(path: string): void;
   delete(): void;
   addBatch(keys: Int32Array, vectors: Float32Array): void;
+  loadVectorsFromFile(path: string): number;
+  getItemVector(key: number): Float32Array | undefined;
 }
 
 // Global Module Interface (Factory)
@@ -120,6 +122,26 @@ export class VectorIndex {
    */
   load(path: string): void {
     this._index.load(path);
+  }
+
+  /**
+   * Loads raw vectors directly from a binary file.
+   * This avoids JS parsing overhead and is much faster for initialization.
+   * @param path The absolute path to the binary file containing packed floats.
+   * @returns The number of vectors loaded.
+   */
+  loadVectorsFromFile(path: string): number {
+    return this._index.loadVectorsFromFile(path);
+  }
+
+  /**
+   * Retrieves the vector associated with a specific key from the index.
+   * Useful when vectors are stored only in native memory (e.g., after loadVectorsFromFile).
+   * @param key The unique key of the item.
+   * @returns The vector as a Float32Array, or undefined if not found.
+   */
+  getItemVector(key: number): Float32Array | undefined {
+    return this._index.getItemVector(key);
   }
 
   /**

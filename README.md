@@ -19,6 +19,7 @@ A high-performance, on-device **vector search engine** demonstration for Expo an
 Unlike traditional databases that search for exact matches (e.g., "Product ID = 123"), this engine uses **Vector Embeddings**. 
 - **Embeddings**: Data (images, text) is converted into an array of numbers (vectors) that represent its meaning.
 - **Distance**: The "similarity" between two items is calculated using the **Cosine Distance** between their vectors.
+- **Native Binary Loading**: Since `v0.2.0`, vectors can be loaded directly from `.bin` files into C++ memory, eliminating the JavaScript bridge bottleneck for large datasets.
 - **HNSW Algorithm**: Instead of checking every single item (slow), we use a mathematical graph that lets us jump through the data to find the nearest neighbors in sub-millisecond time.
 
 ## Project Structure
@@ -83,6 +84,9 @@ python scripts/download_and_convert_products.py
 
 # Step B: Split the dataset into optimized chunks for the mobile app
 python scripts/split_dataset.py
+
+# Step C: Convert to Binary for Native C++ Loader (Ultra Fast)
+python scripts/convert_to_binary.py
 ```
 
 ### 3. Verify
@@ -93,7 +97,7 @@ After running the scripts, your `assets/chunks/` directory should contain multip
 > [!IMPORTANT]
 > The current version of this module has been primary developed and **thoroughly tested on Android**. 
 > - **Android**: Fully supported (tested on Galaxy S23 FE).
-> - **iOS**: Architecture is ready, but full native implementation and verification are planned for a future release.
+> - **iOS**: Fully supported (tested on iPhone 12).
 
 ## Module Documentation
 
@@ -101,22 +105,37 @@ The core logic resides in the `modules/expo-vector-search` directory. For detail
 
 ## Performance and Benchmarks
 
-The application includes a built-in benchmark tool that compares the native C++ implementation against a naive JavaScript baseline. 
+The application includes a built-in benchmark tool that compares the native C++ implementation against a naive JavaScript baseline. Results obtained using **Release builds** on physical devices.
 
-**Real-world benchmarks (Galaxy S23 FE):**
-- **Search Latency**: **0.08ms** (vs 10.51ms in JS loop) -> **130x speedup**.
-- **Memory Footprint (10k vectors, 384 dims)**:
-  - **Full Precision (F32)**: 36,964.94 KB (~37 MB)
-  - **Quantized (Int8)**: 20,580.94 KB (~21 MB) -> **45% savings**.
-- **Bulk Insert**: **74.44ms** for 1,000 vectors using `addBatch`.
+### JS vs. Native Engine Race
+| Platform | JavaScript (Runtime Loop) | Expo Vector Search (Native) | Speedup |
+| :--- | :--- | :--- | :--- |
+| **Android** (S23 FE) | 6.20 ms | 0.15 ms | **~41x** |
+| **iOS** (iPhone 12) | 12.06 ms | 0.10 ms | **~120x** |
 
-![Performance Lab Benchmarks](./assets/images/perf_lab.jpg)
+### Bulk Ingestion (1,000 items)
+| Platform | Individual `.add` | Batch `.addBatch` |
+| :--- | :--- | :--- |
+| **Android** (S23 FE) | 79.87 ms | 76.70 ms |
+| **iOS** (iPhone 12) | 107.94 ms | 102.59 ms |
+
+### Memory Optimization (10,000 items, 384 dims)
+| Platform | Full Precision (F32) | Quantized (Int8) | Savings |
+| :--- | :--- | :--- | :--- |
+| **Android** (S23 FE) | 36,943.84 KB | 20,559.84 KB | **~44%** |
+| **iOS** (iPhone 12) | 36,943.97 KB | 20,559.97 KB | **~44%** |
 
 ## Acknowledgements
 
 - **[USearch](https://github.com/unum-cloud/usearch)**: The high-performance C++ engine powering the similarity search.
 - **[Expo Modules SDK](https://docs.expo.dev/modules/overview/)**: For the robust infrastructure that makes JSI modules accessible in the Expo ecosystem.
 - **[Crossing Minds](https://huggingface.co/datasets/crossingminds/shopping-queries-image-dataset)**: For the sample product dataset.
+
+## Future Roadmap
+
+- [ ] **USearch Engine Upgrade**: Migrate from `v2.9.0` to `v2.23.0+` to benefit from the latest precision and performance enhancements.
+- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE/AVX optimizations specifically for Android build flavors to narrow the F32/Int8 gap.
+- [ ] **Extended Language Support**: Add bindings for additional distance metrics requested by the community.
 
 ## License
 

@@ -3,17 +3,29 @@
 `expo-vector-search` is a high-performance, on-device **vector search engine** module for Expo and React Native.
 
 > [!NOTE]
-> This module is currently **optimized and validated for Android**. The C++ JSI layer is fully functional, but the build configuration and native runtime have been primarily verified on Android devices. iOS support is on the roadmap.
+> This module is **cross-platform** (Android & iOS). The C++ JSI core and build configurations have been validated on production devices (Galaxy S23 FE and iPhone 12).
 
-## Performance (Real-world Benchmarks)
-Results obtained on a **Samsung Galaxy S23 FE**:
-- **Search (1000 items, 128 dims)**: **0.08ms** per query.
-- **Batch Ingest (1000 items)**: **74.44ms** total time.
-- **Memory Optimization (10k items, 384 dims)**:
-    - F32 Footprint: 36,964.94 KB.
-    - Int8 Footprint: 20,580.94 KB.
+## Performance (Release Benchmarks)
 
-![Performance Lab Benchmarks on S23 FE](../../assets/images/perf_lab.jpg)
+Benchmark results obtained using **Release builds** on physical devices (1,000 vectors, 128 dimensions for search/ingestion; 10,000 vectors, 384 dimensions for memory optimization).
+
+### JS vs. Native Engine Race
+| Platform | JavaScript (Runtime Loop) | Expo Vector Search (Native) | Speedup |
+| :--- | :--- | :--- | :--- |
+| **Android** (S23 FE) | 6.20 ms | 0.15 ms | **~41x** |
+| **iOS** (iPhone 12) | 12.06 ms | 0.10 ms | **~120x** |
+
+### Bulk Ingestion (1,000 items)
+| Platform | Individual `.add` | Batch `.addBatch` |
+| :--- | :--- | :--- |
+| **Android** (S23 FE) | 79.87 ms | 76.70 ms |
+| **iOS** (iPhone 12) | 107.94 ms | 102.59 ms |
+
+### Memory Optimization (10,000 items, 384 dims)
+| Platform | Full Precision (F32) | Quantized (Int8) | Savings |
+| :--- | :--- | :--- | :--- |
+| **Android** (S23 FE) | 36,943.84 KB | 20,559.84 KB | **~44%** |
+| **iOS** (iPhone 12) | 36,943.97 KB | 20,559.97 KB | **~44%** |
 
 ## Key Features
 
@@ -77,6 +89,18 @@ Deserializes an index from a file path.
 #### `delete(): void`
 Manually releases native memory resources. The index instance becomes unusable after this call.
 
+#### `loadVectorsFromFile(path: string): number`
+Loads raw vectors directly from a binary file into the index.
+- `path`: Absolute path to the binary file containing packed floats.
+- **Returns**: The number of vectors successfully loaded.
+- **Note**: This is significantly faster than parsing JSON/Base64 in JavaScript and adding vectors loop by loop.
+
+#### `getItemVector(key: number): Float32Array | undefined`
+Retrieves the vector associated with a specific key.
+- `key`: The unique numeric identifier.
+- **Returns**: A `Float32Array` copy of the vector, or `undefined` if the key does not exist.
+- **Use Case**: Allows you to store vectors ONLY in native memory (saving JS RAM) and fetch them only when needed (e.g., for "Find Similar" queries).
+
 #### `dimensions: number` (readonly)
 Returns the dimensionality of the index.
 
@@ -128,6 +152,20 @@ When using `save()` and `load()`, ensure the provided paths are within the appli
 This module performs strict validation on input buffers.
 - **Alignment**: `Float32Array` buffers must be 4-byte aligned for safe native access.
 - **Type Safety**: Input vectors are validated against the index's defined dimensions to prevent out-of-bounds memory operations.
+
+## Known Limitations & Roadmap
+
+### Performance Considerations (F32 vs Int8)
+While **Int8 Quantization** provides significant memory savings (~44% total index reduction and ~75% raw vector reduction), it currently involves a computational overhead during the ingestion process on Android:
+- **Full Precision (F32)**: ~9,284 ms per 10k vectors (Standard).
+- **Quantized (Int8)**: ~34,608 ms per 10k vectors (Slower due to real-time conversion).
+
+This performance gap is a known characteristic of the current version. The Int8 path requires a conversion from `float` to `int8` for every dimension, which is not yet fully vectorized in the Android build.
+
+### Future Roadmap
+- [ ] **USearch Engine Upgrade**: Migrate from `v2.9.0` to `v2.23.0+` to benefit from the latest precision and performance enhancements.
+- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE/AVX optimizations specifically for Android build flavors to narrow the F32/Int8 gap.
+- [ ] **Extended Language Support**: Add bindings for additional distance metrics (L2, IP) as requested by the community.
 
 ## License
 MIT

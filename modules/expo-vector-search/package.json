@@ -1,6 +1,6 @@
 {
     "name": "expo-vector-search",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "A high-performance vector search module for Expo powered by USearch",
     "main": "index.ts",
     "types": "index.ts",

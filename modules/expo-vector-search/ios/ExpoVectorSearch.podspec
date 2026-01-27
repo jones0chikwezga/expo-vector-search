@@ -14,10 +14,12 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  # Swift/Objective-C compatibility
+  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}", "../cpp/**/*.{h,cpp,hpp}"
+  
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
+    'OTHER_CPLUSPLUSFLAGS' => '-fexceptions -DUSEARCH_USE_FP16LIB=0',
+    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/../cpp"'
   }
-
-  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
 end

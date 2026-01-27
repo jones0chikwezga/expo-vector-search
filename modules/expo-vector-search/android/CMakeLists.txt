@@ -33,6 +33,7 @@ target_include_directories(
   expo-vector-search
   PUBLIC
   ${usearch_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../cpp
 )
 
 # 5. Link libraries (Android Log and JS Engine libraries)

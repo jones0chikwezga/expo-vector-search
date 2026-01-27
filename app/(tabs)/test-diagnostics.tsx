@@ -1,3 +1,4 @@
+import { GlassCard } from '@/components/glass-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -25,27 +26,31 @@ export default function PerformanceLabScreen() {
 
     const [f32Memory, setF32Memory] = useState<number | null>(null);
     const [i8Memory, setI8Memory] = useState<number | null>(null);
+    const [f32Time, setF32Time] = useState<number | null>(null);
+    const [i8Time, setI8Time] = useState<number | null>(null);
 
     const DIMENSIONS = 128;
-    const COUNT = 1000; // Smaller count for responsive demo but enough to show difference
+    const COUNT = 1000;
 
     const MEM_COUNT = 10000;
-    const MEM_DIMS = 384; // Higher dims = more vector dominance in memory report
+    const MEM_DIMS = 384;
 
     const runPerformanceRace = async () => {
         setStatus('running');
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        // Give UI time to update
+        setF32Memory(null);
+        setI8Memory(null);
+        setF32Time(null);
+        setI8Time(null);
+
         await new Promise(r => setTimeout(r, 100));
 
-        // 1. JS vs Native Race
         const vectors = Array.from({ length: COUNT }, () =>
             new Float32Array(DIMENSIONS).map(() => Math.random())
         );
         const query = new Float32Array(DIMENSIONS).map(() => Math.random());
 
-        // JS Search (Simple Euclidean - squared to save sqrt overhead)
         const jsStart = performance.now();
         let bestDist = Infinity;
         for (let i = 0; i < COUNT; i++) {
@@ -59,98 +64,128 @@ export default function PerformanceLabScreen() {
         const jsEnd = performance.now();
         setJsSearchTime(jsEnd - jsStart);
 
-        // Native Search
-        const nativeIndex = new VectorIndex(DIMENSIONS);
-        for (let i = 0; i < COUNT; i++) nativeIndex.add(i, vectors[i]);
+        try {
+            const nativeIndex = new VectorIndex(DIMENSIONS);
+            for (let i = 0; i < COUNT; i++) nativeIndex.add(i, vectors[i]);
 
-        const nativeStart = performance.now();
-        nativeIndex.search(query, 1);
-        const nativeEnd = performance.now();
-        setNativeSearchTime(nativeEnd - nativeStart);
+            const nativeStart = performance.now();
+            nativeIndex.search(query, 1);
+            const nativeEnd = performance.now();
+            setNativeSearchTime(nativeEnd - nativeStart);
 
-        nativeIndex.delete(); // Cleanup
-
-        // 2. Single vs Batch Insert
-        const singleIndex = new VectorIndex(DIMENSIONS);
-        const startSingle = performance.now();
-        for (let i = 0; i < COUNT; i++) singleIndex.add(i, vectors[i]);
-        const endSingle = performance.now();
-        setSingleInsertTime(endSingle - startSingle);
-        singleIndex.delete();
-
-        const batchIndex = new VectorIndex(DIMENSIONS);
-        const keys = new Int32Array(COUNT).map((_, i) => i);
-        const contiguousVectors = new Float32Array(COUNT * DIMENSIONS);
-        for (let i = 0; i < COUNT; i++) {
-            contiguousVectors.set(vectors[i], i * DIMENSIONS);
+            nativeIndex.delete();
+        } catch (e: any) {
+            setNativeSearchTime(null);
+            alert(`Native Benchmark Error: ${e.message}`);
         }
 
-        const startBatch = performance.now();
-        batchIndex.addBatch(keys, contiguousVectors);
-        const endBatch = performance.now();
-        setBatchInsertTime(endBatch - startBatch);
-        batchIndex.delete();
+        await new Promise(r => setTimeout(r, 50));
 
-        // 3. Memory Optimization
-        const f32Idx = new VectorIndex(MEM_DIMS, { quantization: 'f32' });
-        const memVectors = new Float32Array(MEM_DIMS);
-        for (let i = 0; i < MEM_COUNT; i++) f32Idx.add(i, memVectors);
-        setF32Memory(f32Idx.memoryUsage);
-        f32Idx.delete();
+        try {
+            const singleIndex = new VectorIndex(DIMENSIONS);
+            const startSingle = performance.now();
+            for (let i = 0; i < COUNT; i++) singleIndex.add(i, vectors[i]);
+            const endSingle = performance.now();
+            setSingleInsertTime(endSingle - startSingle);
+            singleIndex.delete();
 
-        const i8Idx = new VectorIndex(MEM_DIMS, { quantization: 'i8' });
-        for (let i = 0; i < MEM_COUNT; i++) i8Idx.add(i, memVectors);
-        setI8Memory(i8Idx.memoryUsage);
-        i8Idx.delete();
+            const batchIndex = new VectorIndex(DIMENSIONS);
+            const keys = new Int32Array(COUNT).map((_, i) => i);
+            const contiguousVectors = new Float32Array(COUNT * DIMENSIONS);
+            for (let i = 0; i < COUNT; i++) {
+                contiguousVectors.set(vectors[i], i * DIMENSIONS);
+            }
+
+            const startBatch = performance.now();
+            batchIndex.addBatch(keys, contiguousVectors);
+            const endBatch = performance.now();
+            setBatchInsertTime(endBatch - startBatch);
+            batchIndex.delete();
+        } catch (e: any) { }
+
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+            const memKeys = new Int32Array(MEM_COUNT).map((_, i) => i);
+            const singleVec = new Float32Array(MEM_DIMS).fill(0.123);
+            const memChunk = new Float32Array(MEM_COUNT * MEM_DIMS);
+            for (let i = 0; i < MEM_COUNT; i++) {
+                memChunk.set(singleVec, i * MEM_DIMS);
+            }
+
+            const f32Idx = new VectorIndex(MEM_DIMS, { quantization: 'f32' });
+            const startF32 = performance.now();
+            f32Idx.addBatch(memKeys, memChunk);
+            const endF32 = performance.now();
+            setF32Memory(f32Idx.memoryUsage);
+            setF32Time(endF32 - startF32);
+            f32Idx.delete();
+
+            const i8Idx = new VectorIndex(MEM_DIMS, { quantization: 'i8' });
+            const startI8 = performance.now();
+            i8Idx.addBatch(memKeys, memChunk);
+            const endI8 = performance.now();
+            setI8Memory(i8Idx.memoryUsage);
+            setI8Time(endI8 - startI8);
+            i8Idx.delete();
+        } catch (e: any) { }
 
         setStatus('completed');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
 
-    const renderMetric = (label: string, value: string | number | null, unit: string, color: string, compareValue?: number | null) => {
+    const renderMetric = (label: string, value: string | number | null, unit: string, color: string, compareValue?: number | null, secondaryValue?: number | null) => {
         const isSlower = compareValue && typeof value === 'number' && value > compareValue;
         const ratio = compareValue && typeof value === 'number' ? (value / compareValue).toFixed(1) : null;
 
         return (
-            <View style={styles.metricCard}>
+            <GlassCard style={styles.metricCard}>
                 <View style={styles.metricHeader}>
                     <ThemedText style={styles.metricLabel}>{label}</ThemedText>
-                    <ThemedText style={[styles.metricValue, { color }]}>
-                        {value !== null ? (typeof value === 'number' ? value.toFixed(2) : value) : '--'}
-                        <ThemedText style={styles.unit}>{unit}</ThemedText>
-                    </ThemedText>
+                    <View style={{ alignItems: 'flex-end' }}>
+                        <ThemedText style={[styles.metricValue, { color }]}>
+                            {value !== null ? (typeof value === 'number' ? value.toFixed(2) : value) : '--'}
+                            <ThemedText style={styles.unit}>{unit}</ThemedText>
+                        </ThemedText>
+                        {secondaryValue !== null && secondaryValue !== undefined && (
+                            <ThemedText style={styles.secondaryTime}>
+                                {secondaryValue.toFixed(0)} ms
+                            </ThemedText>
+                        )}
+                    </View>
                 </View>
                 {ratio && isSlower && (
                     <ThemedText style={styles.ratioNote}>
                         {ratio}x slower than native
                     </ThemedText>
                 )}
-                <View style={styles.barContainer}>
+                <View style={[styles.barContainer, { backgroundColor: color + '15' }]}>
                     <View style={[styles.bar, {
                         width: value ? '100%' : '0%',
                         backgroundColor: color,
-                        opacity: isSlower ? 0.3 : 1
+                        opacity: isSlower ? 0.4 : 1
                     }]} />
                 </View>
-            </View>
+            </GlassCard>
         );
     };
 
     return (
         <ThemedView style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
-
                 <View style={styles.header}>
-                    <IconSymbol name="bolt.shield.fill" size={48} color={theme.tint} />
+                    <View style={styles.iconCircle}>
+                        <IconSymbol name="sparkles" size={32} color={theme.tint} />
+                    </View>
                     <ThemedText type="title" style={styles.title}>Performance Lab</ThemedText>
-                    <ThemedText style={styles.subtitle}>Native Vector Search Engine Benchmarks</ThemedText>
+                    <ThemedText style={styles.subtitle}>Scientific benchmarking on your device</ThemedText>
                 </View>
 
                 {/* Section 1: Search Race */}
                 <View style={styles.section}>
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>JS VS. NATIVE ENGINE RACE</ThemedText>
+                    <ThemedText style={styles.sectionLabel}>JS VS. NATIVE ENGINE RACE</ThemedText>
                     <ThemedText style={styles.description}>
-                        Searching {COUNT} vectors ({DIMENSIONS} dims) for the nearest neighbor.
+                        Searching {COUNT} vectors ({DIMENSIONS} dims) for candidates.
                     </ThemedText>
                     {renderMetric("JavaScript (Runtime loop)", jsSearchTime, "ms", "#FF453A", nativeSearchTime)}
                     {renderMetric("Expo Vector Search (Native)", nativeSearchTime, "ms", "#32ADE6")}
@@ -158,9 +193,9 @@ export default function PerformanceLabScreen() {
 
                 {/* Section 2: Bulk Ingestion */}
                 <View style={styles.section}>
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>BULK INGESTION THROUGHPUT</ThemedText>
+                    <ThemedText style={styles.sectionLabel}>BULK INGESTION THROUGHPUT</ThemedText>
                     <ThemedText style={styles.description}>
-                        Adding {COUNT} vectors using individual JSI calls vs. batch zero-copy buffer.
+                        Comparing individual JSI calls vs. batch zero-copy buffer.
                     </ThemedText>
                     {renderMetric("Individual .add()", singleInsertTime, "ms", "#FF9F0A", batchInsertTime)}
                     {renderMetric("Batch .addBatch()", batchInsertTime, "ms", "#AF52DE")}
@@ -169,24 +204,24 @@ export default function PerformanceLabScreen() {
                 {/* Section 3: Memory Mastery */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
-                        <ThemedText type="subtitle" style={styles.sectionTitle}>MEMORY OPTIMIZATION</ThemedText>
+                        <ThemedText style={styles.sectionLabel}>MEMORY OPTIMIZATION</ThemedText>
                         {f32Memory && i8Memory && (
                             <View style={styles.savingsBadge}>
                                 <ThemedText style={styles.savingsText}>
-                                    -{(((f32Memory - i8Memory) / f32Memory) * 100).toFixed(0)}% SPACE
+                                    -{(((f32Memory - i8Memory) / f32Memory) * 100).toFixed(0)}% RAM
                                 </ThemedText>
                             </View>
                         )}
                     </View>
                     <ThemedText style={styles.description}>
-                        Comparing {MEM_COUNT.toLocaleString()} vectors ({MEM_DIMS} dims) footprint: F32 (4 bytes/dim) vs. Int8 (1 byte/dim + overhead).
+                        Comparing {MEM_COUNT.toLocaleString()} vectors ({MEM_DIMS} dims) footprint.
                     </ThemedText>
-                    {renderMetric("Full Precision (F32)", f32Memory ? f32Memory / 1024 : null, "KB", "#64D2FF", i8Memory ? i8Memory / 1024 : null)}
-                    {renderMetric("Quantized (Int8)", i8Memory ? i8Memory / 1024 : null, "KB", "#34C759")}
+                    {renderMetric("Full Precision (F32)", f32Memory ? f32Memory / 1024 : null, "KB", "#64D2FF", i8Memory ? i8Memory / 1024 : null, f32Time)}
+                    {renderMetric("Quantized (Int8)", i8Memory ? i8Memory / 1024 : null, "KB", "#34C759", null, i8Time)}
 
                     {i8Memory && (
                         <ThemedText style={styles.hintText}>
-                            💡 Int8 quantization reduces memory usage by ~75% for pure vector data, allowing you to store 4x more data in the same RAM.
+                            💡 Int8 reduces RAM usage by up to 75% for raw vector data.
                         </ThemedText>
                     )}
                 </View>
@@ -195,22 +230,22 @@ export default function PerformanceLabScreen() {
                     style={[styles.runButton, { backgroundColor: theme.tint }]}
                     onPress={runPerformanceRace}
                     disabled={status === 'running'}
+                    activeOpacity={0.8}
                 >
                     {status === 'running' ? (
-                        <ActivityIndicator color="#000" />
+                        <ActivityIndicator color={colorScheme === 'dark' ? '#000' : '#fff'} />
                     ) : (
-                        <ThemedText style={styles.runButtonText}>
-                            {status === 'idle' ? 'START BENCHMARKS' : 'RUN AGAIN'}
+                        <ThemedText style={[styles.runButtonText, { color: colorScheme === 'dark' ? '#000' : '#fff' }]}>
+                            {status === 'idle' ? 'START BENCHMARKS' : 'REFRESH RESULTS'}
                         </ThemedText>
                     )}
                 </TouchableOpacity>
 
                 <View style={styles.footer}>
                     <ThemedText style={styles.footerText}>
-                        Benchmarks ran locally on this device.
+                        All benchmarks are executed native-side.
                     </ThemedText>
                 </View>
-
             </ScrollView>
         </ThemedView>
     );
@@ -218,10 +253,19 @@ export default function PerformanceLabScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { padding: 24, paddingTop: 60, gap: 32 },
+    scrollContent: { padding: 24, paddingTop: 60, gap: 32, paddingBottom: 60 },
     header: { alignItems: 'center', marginBottom: 10 },
-    title: { fontSize: 32, fontWeight: '900', marginTop: 16 },
-    subtitle: { fontSize: 14, opacity: 0.6, marginTop: 4 },
+    iconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#007AFF12',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    title: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+    subtitle: { fontSize: 16, opacity: 0.5, marginTop: 4, fontWeight: '400' },
 
     section: { gap: 12 },
     sectionHeaderRow: {
@@ -229,70 +273,77 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#8E8E93', letterSpacing: 1 },
-    description: { fontSize: 13, opacity: 0.7, marginBottom: 4 },
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#8E8E93',
+        letterSpacing: 2.5,
+        textTransform: 'uppercase',
+    },
+    description: { fontSize: 14, opacity: 0.5, marginBottom: 4, lineHeight: 20 },
 
     savingsBadge: {
-        backgroundColor: '#34C75922',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#34C75944',
+        backgroundColor: '#34C75915',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 10,
     },
     savingsText: {
         color: '#34C759',
         fontSize: 10,
-        fontWeight: '900',
+        fontWeight: '800',
+        letterSpacing: 0.5,
     },
     hintText: {
-        fontSize: 11,
-        opacity: 0.5,
+        fontSize: 12,
+        opacity: 0.4,
         fontStyle: 'italic',
         marginTop: 4,
     },
 
     metricCard: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 12,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#2C2C2E',
+        padding: 0, // Reset for GlassCard
     },
     metricHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'baseline',
-        marginBottom: 8,
+        marginBottom: 12,
     },
-    metricLabel: { fontSize: 14, fontWeight: '600' },
-    metricValue: { fontSize: 18, fontWeight: 'bold', fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
+    metricLabel: { fontSize: 15, fontWeight: '600', opacity: 0.9 },
+    metricValue: { fontSize: 20, fontWeight: '700', fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
+    secondaryTime: { fontSize: 11, opacity: 0.4, fontWeight: '500' },
     unit: { fontSize: 12, opacity: 0.6, marginLeft: 2 },
 
     barContainer: {
-        height: 4,
-        backgroundColor: '#333',
-        borderRadius: 2,
+        height: 6,
+        borderRadius: 3,
         overflow: 'hidden',
     },
-    bar: { height: '100%', borderRadius: 2 },
+    bar: { height: '100%', borderRadius: 3 },
 
-    ratioNote: { fontSize: 10, color: '#FF453A', marginBottom: 8, marginTop: -4 },
+    ratioNote: { fontSize: 11, color: '#FF453A', marginBottom: 10, marginTop: -4, fontWeight: '500' },
 
     runButton: {
-        paddingVertical: 18,
-        borderRadius: 16,
+        paddingVertical: 20,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#007AFF',
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.15,
+                shadowRadius: 20,
+            },
+            android: {
+                elevation: 4,
+            }
+        })
     },
-    runButtonText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+    runButtonText: { fontWeight: '800', fontSize: 16, letterSpacing: 1 },
 
     footer: { alignItems: 'center', marginTop: 10 },
-    footerText: { fontSize: 11, opacity: 0.4 },
+    footerText: { fontSize: 12, opacity: 0.3 },
 });

@@ -37,6 +37,12 @@ const MAPPING = {
   'square.and.arrow.down': 'save',
   'sparkles': 'auto-awesome',
   'bolt.shield.fill': 'bolt',
+  'brain.fill': 'psychology',
+  'book.fill': 'book',
+  'music.note': 'music-note',
+  'photo.stack': 'photo-library',
+  'shield.lefthalf.filled': 'security',
+  'cpu': 'memory',
 } as IconMapping;
 
 /**

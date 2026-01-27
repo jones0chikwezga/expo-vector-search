@@ -1,131 +1,113 @@
 import { Image } from 'expo-image';
-import { VectorIndex } from 'expo-vector-search';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Dimensions, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { GlassCard } from '@/components/glass-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Product, useVectorCatalog } from '@/hooks/useVectorCatalog';
+import { BlurView } from 'expo-blur';
 
-import productChunks from '@/assets/chunks';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const COLUMN_WIDTH = (SCREEN_WIDTH - 48) / 2; // 16 padding on sides + 16 gap
+const ITEM_HEIGHT = COLUMN_WIDTH + 85; // Image + fixed content height
 
-// Define the shape of our source data (Products)
-type Product = {
-    id: string;
-    name: string;
-    image: string | null;
-    vector: number[];
-    metadata: {
-        type: string;
-    };
-    // Optional runtime property for filtered results
-    _score?: number;
-};
-
-const VECTOR_DIMENSION = 768; // CLIP ViT-L/14
+const ProductCard = React.memo(({ item, onPress, themeColors }: { item: Product; onPress: (p: Product) => void; themeColors: any }) => (
+    <TouchableOpacity
+        style={styles.gridCard}
+        onPress={() => onPress(item)}
+        activeOpacity={0.7}
+    >
+        <View style={[styles.productItem, { backgroundColor: themeColors.background, borderColor: themeColors.icon + '20' }]}>
+            <View style={styles.imageContainer}>
+                <Image
+                    source={{ uri: item.image ?? undefined }}
+                    style={styles.productImage}
+                    contentFit="cover"
+                    transition={200}
+                />
+                {item._score !== undefined && (
+                    <View style={styles.floatingMatch}>
+                        <ThemedText style={styles.matchText}>
+                            {((1 - item._score) * 100).toFixed(0)}%
+                        </ThemedText>
+                    </View>
+                )}
+            </View>
+            <View style={styles.itemContent}>
+                <ThemedText style={styles.productName} numberOfLines={1}>{item.name}</ThemedText>
+                <ThemedText style={styles.categoryText}>{item.metadata.type}</ThemedText>
+            </View>
+        </View>
+    </TouchableOpacity>
+));
 
 export default function VectorSearchScreen() {
-    const colorScheme = useColorScheme();
+    const colorScheme = useColorScheme() ?? 'light';
+    const themeColors = Colors[colorScheme];
+    const isDark = colorScheme === 'dark';
+
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState<Product[]>([]);
-    const [isInitializing, setIsInitializing] = useState(true);
     const [isSearching, setIsSearching] = useState(false);
-    const [loadedCount, setLoadedCount] = useState(0);
 
-    // Store all products in memory for display mapping
-    const allProductsRef = useRef<Product[]>([]);
+    const { isInitializing, loadedCount, allProductsRef, vectorIndex } = useVectorCatalog();
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Memoize the vector index instance. We use f32 for maximum precision in the 'magic' demo.
-    const vectorIndex = useMemo(() => new VectorIndex(VECTOR_DIMENSION, {
-        quantization: 'f32'
-    }), []);
-
-    // Initialize the vector store on mount
     useEffect(() => {
-        let isActive = true;
-
-        async function init() {
-            if (allProductsRef.current.length > 0) {
-                if (vectorIndex.count === 0) {
-                    allProductsRef.current.forEach((p, i) => {
-                        if (p.vector && p.vector.length === VECTOR_DIMENSION) {
-                            vectorIndex.add(i, new Float32Array(p.vector));
-                        }
-                    });
-                }
-                setLoadedCount(allProductsRef.current.length);
-                setResults(allProductsRef.current.slice(0, 20));
-                setIsInitializing(false);
-                return;
-            }
-
-            try {
-                let totalLoaded = 0;
-                for (const chunk of productChunks) {
-                    if (!isActive) break;
-                    const products = chunk as unknown as Product[];
-
-                    // Optimized insertion for the demo
-                    products.forEach((product) => {
-                        if (product.vector?.length === VECTOR_DIMENSION) {
-                            vectorIndex.add(totalLoaded, new Float32Array(product.vector));
-                            allProductsRef.current.push(product);
-                            totalLoaded++;
-                        }
-                    });
-
-                    if (isActive) setLoadedCount(totalLoaded);
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                }
-            } catch (e) {
-                console.error('Failed to initialize vector store:', e);
-            } finally {
-                if (isActive) {
-                    setIsInitializing(false);
-                    setResults(allProductsRef.current.slice(0, 20));
-                }
-            }
+        if (!isInitializing && allProductsRef.current.length > 0 && searchTerm === '') {
+            setResults(allProductsRef.current.slice(0, 20));
         }
-
-        const timer = setTimeout(init, 300);
-        return () => {
-            isActive = false;
-            clearTimeout(timer);
-        };
-    }, [vectorIndex]);
+    }, [isInitializing, searchTerm]);
 
     const handleSearch = (text: string) => {
         setSearchTerm(text);
-        if (!text) {
-            setResults(allProductsRef.current.slice(0, 20));
-            return;
-        }
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
-        const lower = text.toLowerCase();
-        const filtered = [];
-        for (const p of allProductsRef.current) {
-            if (p.name.toLowerCase().includes(lower)) {
-                filtered.push(p);
-                if (filtered.length >= 50) break;
+        searchTimeoutRef.current = setTimeout(() => {
+            if (!text) {
+                setResults(allProductsRef.current.slice(0, 20));
+                return;
             }
-        }
-        setResults(filtered);
+
+            const lower = text.toLowerCase();
+            const filtered = [];
+            for (const p of allProductsRef.current) {
+                if (p.name.toLowerCase().includes(lower)) {
+                    filtered.push(p);
+                    if (filtered.length >= 50) break;
+                }
+            }
+            setResults(filtered);
+        }, 300);
     };
 
-    const findSimilar = async (product: Product) => {
+    const findSimilar = React.useCallback(async (product: Product) => {
         if (!vectorIndex) return;
-
         setIsSearching(true);
         setSearchTerm(`Similar to: ${product.name}`);
 
         setTimeout(() => {
             requestAnimationFrame(() => {
                 try {
-                    const queryVector = new Float32Array(product.vector);
-                    const searchResults = vectorIndex.search(queryVector, 50);
+                    let queryVector: Float32Array | null | undefined = null;
+                    if (product.vector) queryVector = new Float32Array(product.vector);
 
+                    if (!queryVector) {
+                        const key = allProductsRef.current.indexOf(product);
+                        if (key !== -1) queryVector = vectorIndex.getItemVector(key);
+                    }
+
+                    if (!queryVector) {
+                        setResults([]);
+                        setIsSearching(false);
+                        return;
+                    }
+
+                    const searchResults = vectorIndex.search(queryVector, 50);
                     if (!searchResults || searchResults.length === 0) {
                         setResults([]);
                         return;
@@ -146,205 +128,149 @@ export default function VectorSearchScreen() {
                 }
             });
         }, 50);
-    };
-
-    const themeColors = Colors[colorScheme ?? 'light'];
+    }, [vectorIndex, allProductsRef]);
 
     const loadMore = () => {
         if (isSearching || searchTerm !== '') return;
         const currentLength = results.length;
         const total = allProductsRef.current.length;
         if (currentLength >= total) return;
-
         const nextBatch = allProductsRef.current.slice(currentLength, currentLength + 50);
         setResults(prev => [...prev, ...nextBatch]);
     };
 
+    const renderItem = React.useCallback(({ item }: { item: Product }) => (
+        <ProductCard item={item} onPress={findSimilar} themeColors={themeColors} />
+    ), [findSimilar, themeColors]);
+
+    const getItemLayout = React.useCallback((_: any, index: number) => ({
+        length: ITEM_HEIGHT,
+        offset: ITEM_HEIGHT * Math.floor(index / 2),
+        index,
+    }), []);
+
     return (
         <ThemedView style={styles.container}>
             <View style={styles.header}>
-                <ThemedText type="title">Visual Search</ThemedText>
+                <ThemedText type="title" style={styles.title}>Visual Search</ThemedText>
                 <ThemedText style={styles.subtitle}>
-                    Find products based on visual patterns and metadata.
+                    Find patterns beyond exact text matches.
                 </ThemedText>
 
-                <View style={styles.statsRow}>
-                    <IconSymbol name="bolt.fill" size={12} color={themeColors.tint} />
+                <View style={styles.statsBadge}>
+                    <IconSymbol name="bolt.fill" size={12} color="#007AFF" />
                     <ThemedText style={styles.statsText}>
-                        Browsing {loadedCount.toLocaleString()} items instantly
+                        {loadedCount.toLocaleString()} ITEMS INDEXED
                     </ThemedText>
                 </View>
             </View>
 
-            <View style={[styles.searchContainer, { backgroundColor: themeColors.background, borderColor: themeColors.icon + '33' }]}>
-                <IconSymbol name="magnifyingglass" size={18} color={themeColors.icon} />
-                <TextInput
-                    style={[styles.searchInput, { color: themeColors.text }]}
-                    placeholder="Search catalog..."
-                    placeholderTextColor="#888"
-                    value={searchTerm}
-                    onChangeText={handleSearch}
-                />
-                {searchTerm.length > 0 && (
-                    <TouchableOpacity onPress={() => handleSearch('')} hitSlop={10}>
-                        <IconSymbol name="xmark.circle.fill" size={18} color={themeColors.icon} />
-                    </TouchableOpacity>
-                )}
+            <View style={styles.searchBarWrapper}>
+                <GlassCard style={styles.searchGlass}>
+                    <View style={styles.searchInner}>
+                        <IconSymbol name="magnifyingglass" size={18} color={isDark ? '#FFF' : '#000'} style={{ opacity: 0.5 }} />
+                        <TextInput
+                            style={[styles.searchInput, { color: themeColors.text }]}
+                            placeholder="Try 'Red Sneakers' or 'Floral'..."
+                            placeholderTextColor={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'}
+                            value={searchTerm}
+                            onChangeText={handleSearch}
+                        />
+                        {searchTerm.length > 0 && (
+                            <TouchableOpacity onPress={() => handleSearch('')} hitSlop={10}>
+                                <IconSymbol name="xmark.circle.fill" size={18} color={themeColors.icon} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </GlassCard>
             </View>
 
             {isInitializing && loadedCount < 500 ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="small" color={themeColors.tint} />
-                    <ThemedText style={{ marginTop: 12, opacity: 0.6 }}>Indexing catalog...</ThemedText>
+                    <ThemedText style={{ marginTop: 16, opacity: 0.5 }}>Preparing engine...</ThemedText>
                 </View>
             ) : (
                 <FlatList
+                    key="grid"
                     data={results}
                     keyExtractor={(item) => item.id}
-                    contentContainerStyle={{ paddingBottom: 40 }}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.item, { borderBottomColor: themeColors.icon + '15' }]}
-                            onPress={() => findSimilar(item)}
-                        >
-                            <Image
-                                source={{ uri: item.image ?? undefined }}
-                                style={styles.productImage}
-                                contentFit="cover"
-                                transition={200}
-                            />
-                            <View style={styles.itemContent}>
-                                <ThemedText type="defaultSemiBold" numberOfLines={1}>{item.name}</ThemedText>
-                                <ThemedText style={styles.categoryText}>{item.metadata.type}</ThemedText>
-                                {item._score !== undefined && (
-                                    <View style={styles.matchBadge}>
-                                        <ThemedText style={styles.matchText}>
-                                            {((1 - item._score) * 100).toFixed(0)}% Match
-                                        </ThemedText>
-                                    </View>
-                                )}
-                            </View>
-                            <IconSymbol name="chevron.right" size={16} color="#ccc" />
-                        </TouchableOpacity>
-                    )}
+                    numColumns={2}
+                    columnWrapperStyle={styles.columnWrapper}
+                    contentContainerStyle={styles.listContent}
+                    renderItem={renderItem}
                     onEndReached={loadMore}
                     onEndReachedThreshold={0.5}
+                    getItemLayout={getItemLayout}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={21}
+                    removeClippedSubviews={false}
+                    updateCellsBatchingPeriod={100}
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <ThemedText style={{ opacity: 0.5 }}>No items found in catalog.</ThemedText>
+                            <ThemedText style={{ opacity: 0.4 }}>No matches found</ThemedText>
                         </View>
                     }
                 />
             )}
 
             {isSearching && (
-                <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color="#fff" />
-                    <ThemedText style={{ color: '#fff', marginTop: 15, fontWeight: '600' }}>Finding similar items...</ThemedText>
-                </View>
+                <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={themeColors.tint} />
+                    <ThemedText style={styles.loadingText}>Analyzing visual patterns...</ThemedText>
+                </BlurView>
             )}
         </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        paddingTop: 60,
-    },
-    header: {
-        paddingHorizontal: 24,
-        marginBottom: 20,
-    },
-    subtitle: {
-        opacity: 0.6,
-        fontSize: 15,
-        marginTop: 4,
-        lineHeight: 20,
-    },
-    statsRow: {
+    container: { flex: 1, paddingTop: 60 },
+    header: { paddingHorizontal: 24, marginBottom: 20 },
+    title: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+    subtitle: { opacity: 0.5, fontSize: 16, marginTop: 4, lineHeight: 22 },
+    statsBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 12,
-        backgroundColor: 'rgba(0, 122, 255, 0.08)',
+        backgroundColor: '#007AFF10',
         alignSelf: 'flex-start',
         paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
+        paddingVertical: 5,
+        borderRadius: 10,
     },
-    statsText: {
-        fontSize: 11,
-        fontWeight: '700',
-        marginLeft: 6,
-        color: '#007AFF',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginHorizontal: 24,
-        marginBottom: 24,
-        paddingHorizontal: 12,
-        height: 50,
-        borderRadius: 12,
-        borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    searchInput: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 16,
-    },
-    item: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 24,
-        borderBottomWidth: 1,
-    },
-    productImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 12,
-        backgroundColor: '#f5f5f5',
-    },
-    itemContent: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    categoryText: {
-        fontSize: 13,
-        color: '#888',
-        marginTop: 2,
-    },
-    matchBadge: {
-        marginTop: 6,
-        backgroundColor: '#E8F5E9',
-        alignSelf: 'flex-start',
+    statsText: { fontSize: 10, fontWeight: '800', marginLeft: 6, color: '#007AFF', letterSpacing: 1 },
+
+    searchBarWrapper: { paddingHorizontal: 24, marginBottom: 24 },
+    searchGlass: { padding: 0, borderRadius: 16 },
+    searchInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 56 },
+    searchInput: { flex: 1, marginLeft: 12, fontSize: 16, fontWeight: '500' },
+
+    listContent: { paddingHorizontal: 16, paddingBottom: 60, gap: 16 },
+    columnWrapper: { justifyContent: 'space-between', gap: 16 },
+
+    gridCard: { flex: 0.5, marginBottom: 8 },
+    productItem: { borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+    imageContainer: { width: '100%', aspectRatio: 1, backgroundColor: 'rgba(0,0,0,0.03)' },
+    productImage: { width: '100%', height: '100%' },
+
+    itemContent: { padding: 10, gap: 2 },
+    productName: { fontSize: 13, fontWeight: '700' },
+    categoryText: { fontSize: 10, opacity: 0.4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    floatingMatch: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(52, 199, 89, 0.9)',
         paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
+        paddingVertical: 3,
+        borderRadius: 6
     },
-    matchText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        color: '#2E7D32',
-    },
-    center: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 40,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    matchText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+    loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+    loadingText: { marginTop: 20, fontWeight: '700', fontSize: 16, opacity: 0.8 },
 });
