@@ -34,6 +34,7 @@
         "android/build.gradle",
         "ios",
         "src",
+        "cpp",
         "build",
         "expo-module.config.json",
         "index.ts"

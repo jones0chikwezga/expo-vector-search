@@ -1,10 +1,10 @@
 Pod::Spec.new do |s|
   s.name           = 'ExpoVectorSearch'
-  s.version        = '1.0.0'
-  s.summary        = 'A sample project summary'
-  s.description    = 'A sample project description'
-  s.author         = ''
-  s.homepage       = 'https://docs.expo.dev/modules/'
+  s.version        = '0.2.0'
+  s.summary        = 'High-performance on-device vector search for Expo'
+  s.description    = 'Fast similarity search using HNSW and JSI for React Native'
+  s.author         = 'Emerson Vieira'
+  s.homepage       = 'https://github.com/mensonones/expo-vector-search'
   s.platforms      = {
     :ios => '15.1',
     :tvos => '15.1'
