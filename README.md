@@ -133,9 +133,15 @@ The application includes a built-in benchmark tool that compares the native C++ 
 
 ## Future Roadmap
 
-- [ ] **USearch Engine Upgrade**: Migrate from `v2.9.0` to `v2.23.0+` to benefit from the latest precision and performance enhancements.
-- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE/AVX optimizations specifically for Android build flavors to narrow the F32/Int8 gap.
-- [ ] **Extended Language Support**: Add bindings for additional distance metrics requested by the community.
+- [ ] **Dynamic CRUD Support**: Implement `remove(key)` and `update(key, vector)` for live index management.
+- [ ] **Metadata Filtering**: Enable search with predicates (e.g., filtering by category or availability).
+- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE/AVX optimizations for Android to narrow the F32/Int8 performance gap.
+- [ ] **On-Device Embeddings**: Local text/image to vector conversion (using MediaPipe or ONNX).
+- [ ] **Hybrid Search**: Combine vector similarity with traditional keyword-based search.
+- [ ] **USearch Engine Upgrade**: Migrate from `v2.9.0` to `v2.23.0+` for better precision.
+- [ ] **Simplified React Hooks**: Abstractions like `useVectorSearch` for automatic resource management.
+- [ ] **Background Indexing**: Offload heavy ingestion to native threads to prevent UI stutters.
+- [ ] **SQLite Synchronization**: Built-in utilities to sync vector indices with `expo-sqlite`.
 
 ## License
 

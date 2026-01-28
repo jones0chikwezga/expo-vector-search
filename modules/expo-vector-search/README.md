@@ -163,9 +163,14 @@ While **Int8 Quantization** provides significant memory savings (~44% total inde
 This performance gap is a known characteristic of the current version. The Int8 path requires a conversion from `float` to `int8` for every dimension, which is not yet fully vectorized in the Android build.
 
 ### Future Roadmap
-- [ ] **USearch Engine Upgrade**: Migrate from `v2.9.0` to `v2.23.0+` to benefit from the latest precision and performance enhancements.
-- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE/AVX optimizations specifically for Android build flavors to narrow the F32/Int8 gap.
-- [ ] **Extended Language Support**: Add bindings for additional distance metrics (L2, IP) as requested by the community.
+- [ ] **Dynamic CRUD**: Implement `remove(key)` and `update(key, vector)` in the JSI layer.
+- [ ] **Metadata Filtering**: Support for predicates during ANN search (filters).
+- [ ] **Architecture-Specific SIMD**: Enable NEON/SVE optimizations for Android builds.
+- [ ] **Hybrid Search**: Integration with a keywords-based engine for hybrid results.
+- [ ] **Background Indexing**: True multithreaded ingestion to avoid JS bridge/thread locks.
+- [ ] **Extended Distance Metrics**: Support for L2, IP, and other USearch-native metrics.
+- [ ] **USearch Upgrade**: Migration to `v2.23.0+` for enhanced performance.
+- [ ] **Incremental Persistence**: Local storage optimizations for large datasets.
 
 ## License
 MIT
