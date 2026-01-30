@@ -43,6 +43,26 @@ const MAPPING = {
   'photo.stack': 'photo-library',
   'shield.lefthalf.filled': 'security',
   'cpu': 'memory',
+  'hammer.fill': 'build',
+  // Debug screen icons
+  'play.fill': 'play-arrow',
+  'pause.fill': 'pause',
+  'terminal.fill': 'terminal',
+  'gearshape.fill': 'settings',
+  'ruler.fill': 'straighten',
+  'cpu.fill': 'memory',
+  'pencil.and.outline': 'edit',
+  'externaldrive.fill': 'storage',
+  'eye.fill': 'visibility',
+  'line.3.horizontal.decrease.circle.fill': 'filter-list',
+  'trash': 'delete',
+  'doc.on.doc.fill': 'content-copy',
+  'doc.text.magnifyingglass': 'find-in-page',
+  'checkmark.shield.fill': 'verified-user',
+  'exclamationmark.triangle.fill': 'warning',
+  'qrcode.viewfinder': 'qr-code-scanner',
+  'person.2.crop.square.stack.fill': 'people', // Fallback for Skills
+  'chart.pie.fill': 'pie-chart', // Fallback for Jaccard Metric
 } as IconMapping;
 
 /**
