@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
@@ -8,11 +8,20 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import { GlassCard } from '@/components/glass-card';
-
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const isDark = colorScheme === 'dark';
   const theme = Colors[colorScheme];
+
+  const SectionCard = ({ title, icon, children, accentColor }: { title: string; icon: string; children: React.ReactNode; accentColor?: string }) => (
+    <View style={[styles.sectionCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+      <View style={[styles.sectionHeader, accentColor ? { borderLeftColor: accentColor } : null]}>
+        <IconSymbol name={icon as any} size={16} color={accentColor || theme.icon} />
+        <ThemedText style={[styles.sectionTitle, accentColor ? { color: accentColor } : null]}>{title}</ThemedText>
+      </View>
+      {children}
+    </View>
+  );
 
   return (
     <ParallaxScrollView
@@ -25,110 +34,114 @@ export default function HomeScreen() {
       }>
 
       <ThemedView style={styles.contentContainer}>
-        {/* Hero Title Section */}
+        {/* Header Section */}
         <View style={styles.titleSection}>
           <View style={styles.badge}>
             <ThemedText style={styles.badgeText}>v0.2.0</ThemedText>
           </View>
-          <ThemedText type="title" style={styles.headerTitle}>Expo Vector Search</ThemedText>
+          <ThemedText type="title" style={styles.headerTitle}>Distance Metrics</ThemedText>
           <ThemedText style={styles.headerSubtitle}>
-            The next generation of on-device semantic intelligence.
+            Understanding how vector search engines measure similarity.
           </ThemedText>
         </View>
 
-        {/* Feature Cards */}
+        {/* Introduction */}
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>CORE CONCEPT</ThemedText>
-          <GlassCard>
-            <IconSymbol name="brain.fill" size={24} color={theme.tint} />
-            <ThemedText type="subtitle" style={styles.cardTitle}>Beyond Keywords</ThemedText>
-            <ThemedText style={styles.cardBody}>
-              Traditional databases search for <ThemedText type="defaultSemiBold">exact matches</ThemedText>.
-              Vector engines search for <ThemedText type="defaultSemiBold">intent and meaning</ThemedText>.
-            </ThemedText>
-          </GlassCard>
+          <ThemedText style={styles.introText}>
+            The choice of distance metric fundamentally changes how "similarity" is defined.
+            Select the metric that matches your data type and use case.
+          </ThemedText>
         </View>
 
-        {/* Analogy Carousel-like list */}
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>INTUITIVE ANALOGIES</ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
-            <GlassCard style={styles.carouselCard}>
-              <IconSymbol name="book.fill" size={24} color="#FF9F0A" />
-              <ThemedText type="defaultSemiBold" style={styles.analogyTitle}>The Librarian</ThemedText>
-              <ThemedText style={styles.analogyText}>
-                Finds &quot;books about hot celestial bodies&quot; even if the title doesn&apos;t say &quot;Sun&quot;.
-              </ThemedText>
-            </GlassCard>
+        {/* L2 Squared Card */}
+        <SectionCard title="EUCIDEAN DISTANCE (L2)" icon="ruler.fill" accentColor="#32D74B">
+          <ThemedText style={styles.metricDesc}>
+            Measures the straight-line distance between two points in space.
+          </ThemedText>
+          <View style={styles.useCaseBox}>
+            <ThemedText type="defaultSemiBold" style={styles.useCaseTitle}>BEST FOR:</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Geolocation (finding nearest coffee shop)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Computer Vision (color matching)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Physical dimensions comparison</ThemedText>
+          </View>
+          <View style={[styles.technicalTag, { backgroundColor: '#32D74B20' }]}>
+            <ThemedText style={[styles.technicalText, { color: '#32D74B' }]}>CODE: l2sq</ThemedText>
+          </View>
+        </SectionCard>
 
-            <GlassCard style={styles.carouselCard}>
-              <IconSymbol name="music.note" size={24} color="#AF52DE" />
-              <ThemedText type="defaultSemiBold" style={styles.analogyTitle}>Music Curator</ThemedText>
-              <ThemedText style={styles.analogyText}>
-                Matches the &quot;melancholy vibe&quot; of a song across different genres.
-              </ThemedText>
-            </GlassCard>
+        {/* Cosine Card */}
+        <SectionCard title="COSINE SIMILARITY" icon="arrow.triangle.branch" accentColor="#FF9500">
+          <ThemedText style={styles.metricDesc}>
+            Measures the cosine of the angle between two vectors. Focuses on orientation, not magnitude.
+          </ThemedText>
+          <View style={styles.useCaseBox}>
+            <ThemedText type="defaultSemiBold" style={styles.useCaseTitle}>BEST FOR:</ThemedText>
+            <ThemedText style={styles.useCaseText}>• NLP & Text Embeddings (LLMs)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Semantic Search</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Document Classification</ThemedText>
+          </View>
+          <View style={[styles.technicalTag, { backgroundColor: '#FF950020' }]}>
+            <ThemedText style={[styles.technicalText, { color: '#FF9500' }]}>CODE: cos</ThemedText>
+          </View>
+        </SectionCard>
 
-            <GlassCard style={styles.carouselCard}>
-              <IconSymbol name="cart.fill" size={24} color="#32ADE6" />
-              <ThemedText type="defaultSemiBold" style={styles.analogyTitle}>Personal Shopper</ThemedText>
-              <ThemedText style={styles.analogyText}>
-                Matches your photo to a specific floral pattern in the inventory.
-              </ThemedText>
-            </GlassCard>
-          </ScrollView>
-        </View>
+        {/* Inner Product Card */}
+        <SectionCard title="INNER PRODUCT" icon="dot.square.fill" accentColor="#00C7BE">
+          <ThemedText style={styles.metricDesc}>
+            Projection of one vector onto another. Magnitude and angle both matter.
+          </ThemedText>
+          <View style={styles.useCaseBox}>
+            <ThemedText type="defaultSemiBold" style={styles.useCaseTitle}>BEST FOR:</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Recommender Systems</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Matrix Factorization</ThemedText>
+            <ThemedText style={styles.useCaseText}>• User-Item Interaction Scoring</ThemedText>
+          </View>
+          <View style={[styles.technicalTag, { backgroundColor: '#00C7BE20' }]}>
+            <ThemedText style={[styles.technicalText, { color: '#00C7BE' }]}>CODE: ip</ThemedText>
+          </View>
+        </SectionCard>
 
-        {/* Use Cases */}
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>REAL-WORLD POWERS</ThemedText>
+        {/* Hamming Card */}
+        <SectionCard title="HAMMING DISTANCE" icon="cpu" accentColor="#AF52DE">
+          <ThemedText style={styles.metricDesc}>
+            Counts the number of positions at which the corresponding bits are different.
+          </ThemedText>
+          <View style={styles.useCaseBox}>
+            <ThemedText type="defaultSemiBold" style={styles.useCaseTitle}>BEST FOR:</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Binary Vectors / Hashing</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Duplicate Detection (Perceptual Hash)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Gene Sequence Comparison</ThemedText>
+          </View>
+          <View style={[styles.technicalTag, { backgroundColor: '#AF52DE20' }]}>
+            <ThemedText style={[styles.technicalText, { color: '#AF52DE' }]}>CODE: hamming</ThemedText>
+          </View>
+        </SectionCard>
 
-          <FeatureItem
-            icon="photo.stack"
-            title="Intelligent Gallery"
-            description="Find 'sunset at the beach' without any manual tagging."
-            color="#34C759"
-          />
-          <FeatureItem
-            icon="shield.lefthalf.filled"
-            title="Smarter Moderation"
-            description="Detect toxic intent, even with clever misspellings."
-            color="#FF3B30"
-          />
-          <FeatureItem
-            icon="cpu"
-            title="Offline Local RAG"
-            description="Private AI knowledge bases directly on the device."
-            color="#5856D6"
-          />
-        </View>
+        {/* Jaccard Card */}
+        <SectionCard title="JACCARD INDEX" icon="chart.pie.fill" accentColor="#5856D6">
+          <ThemedText style={styles.metricDesc}>
+            Measures similarity between finite sample sets (Intersection over Union).
+          </ThemedText>
+          <View style={styles.useCaseBox}>
+            <ThemedText type="defaultSemiBold" style={styles.useCaseTitle}>BEST FOR:</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Recommendation Engines (Product Sets)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Object Detection (Bounding Boxes)</ThemedText>
+            <ThemedText style={styles.useCaseText}>• Molecular Fingerprinting</ThemedText>
+          </View>
+          <View style={[styles.technicalTag, { backgroundColor: '#5856D620' }]}>
+            <ThemedText style={[styles.technicalText, { color: '#5856D6' }]}>CODE: jaccard</ThemedText>
+          </View>
+        </SectionCard>
 
         {/* Footer info */}
         <View style={styles.footer}>
           <View style={styles.divider} />
           <ThemedText style={styles.footerText}>
-            Powered by USearch (C++ JSI). 100% On-Device.
-          </ThemedText>
-          <ThemedText style={styles.footerDetail}>
-            10k items indexed in &lt;1ms. Zero-copy JSI architecture.
+            Powered by USearch (C++ JSI).
           </ThemedText>
         </View>
       </ThemedView>
     </ParallaxScrollView>
-  );
-}
-
-function FeatureItem({ icon, title, description, color }: any) {
-  return (
-    <View style={styles.featureItem}>
-      <View style={[styles.iconContainer, { backgroundColor: color + '12' }]}>
-        <IconSymbol name={icon} size={20} color={color} />
-      </View>
-      <View style={styles.featureContent}>
-        <ThemedText type="defaultSemiBold" style={styles.featureTitle}>{title}</ThemedText>
-        <ThemedText style={styles.featureDescription}>{description}</ThemedText>
-      </View>
-    </View>
   );
 }
 
@@ -139,7 +152,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 24,
-    gap: 32,
+    gap: 24,
     paddingBottom: 60,
   },
   titleSection: {
@@ -175,96 +188,74 @@ const styles = StyleSheet.create({
   section: {
     gap: 16,
   },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#8E8E93',
-    letterSpacing: 2.5,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  glassCardContainer: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.04,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 0,
-      }
-    })
-  },
-  glassCardInner: {
-    width: '100%',
-  },
-  glassCardContent: {
-    padding: 24,
-    borderWidth: 1,
-    borderRadius: 28,
-    gap: 12,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  cardBody: {
+  introText: {
     fontSize: 16,
     lineHeight: 24,
     opacity: 0.7,
-    fontWeight: '400',
   },
-  carousel: {
-    gap: 16,
-    paddingRight: 24,
+  sectionCard: {
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  carouselCard: {
-    width: 260,
-  },
-  analogyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  analogyText: {
-    fontSize: 14,
-    lineHeight: 20,
-    opacity: 0.6,
-    fontWeight: '400',
-  },
-  featureItem: {
+  sectionHeader: {
     flexDirection: 'row',
-    gap: 16,
     alignItems: 'center',
-    marginBottom: 4,
-    paddingVertical: 6,
+    gap: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
+    paddingLeft: 8,
+    marginLeft: -8,
   },
-  iconContainer: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    opacity: 0.6,
   },
-  featureContent: {
-    flex: 1,
-    gap: 2,
+  metricDesc: {
+    fontSize: 15,
+    lineHeight: 22,
+    opacity: 0.8,
   },
-  featureTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+  useCaseBox: {
+    backgroundColor: 'rgba(120,120,128,0.06)',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 4,
   },
-  featureDescription: {
-    fontSize: 14,
+  useCaseTitle: {
+    fontSize: 11,
     opacity: 0.5,
-    lineHeight: 18,
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
+  useCaseText: {
+    fontSize: 13,
+    lineHeight: 20,
+    opacity: 0.7,
+  },
+  technicalTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  technicalText: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: Platform.select({ ios: 'Courier', default: 'monospace' }),
+  },
+
+
   footer: {
-    marginTop: 24,
+    marginTop: 12,
     alignItems: 'center',
     gap: 6,
   },
@@ -280,8 +271,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     opacity: 0.4,
   },
-  footerDetail: {
-    fontSize: 10,
-    opacity: 0.2,
-  }
 });
