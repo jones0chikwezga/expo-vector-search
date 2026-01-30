@@ -7,6 +7,8 @@
 #include <jsi/jsi.h>
 #include <memory>
 #include <string>
+#include <thread>
+#include <unordered_set>
 #include <vector>
 
 // ... (keep existing includes)
@@ -116,8 +118,8 @@ class VectorIndexHostObject : public jsi::HostObject {
 public:
   using Index = index_dense_t;
 
-  VectorIndexHostObject(int dimensions, bool quantized) {
-    metric_kind_t metric_kind = metric_kind_t::cos_k;
+  VectorIndexHostObject(int dimensions, bool quantized,
+                        metric_kind_t metric_kind = metric_kind_t::cos_k) {
     scalar_kind_t scalar_kind =
         quantized ? scalar_kind_t::i8_k : scalar_kind_t::f32_k;
     metric_punned_t metric(dimensions, metric_kind, scalar_kind);
@@ -126,7 +128,11 @@ public:
     if (!_index)
       throw std::runtime_error("Failed to initialize USearch index");
 
-    if (!_index->reserve(100))
+    size_t threads = std::thread::hardware_concurrency();
+    if (threads == 0)
+      threads = 1;
+
+    if (!_index->reserve(index_limits_t(100, threads)))
       LOGE("Failed to reserve initial capacity");
   }
 
@@ -262,6 +268,65 @@ public:
           });
     }
 
+    if (methodName == "remove") {
+      return jsi::Function::createFromHostFunction(
+          runtime, name, 1,
+          [this](jsi::Runtime &runtime, const jsi::Value &thisValue,
+                 const jsi::Value *arguments, size_t count) -> jsi::Value {
+            if (count < 1)
+              throw jsi::JSError(runtime, "remove expects 1 argument: key");
+            if (!_index)
+              throw jsi::JSError(runtime, "VectorIndex has been deleted.");
+
+            default_key_t key =
+                static_cast<default_key_t>(arguments[0].asNumber());
+
+            auto result = _index->remove(key);
+            if (!result) {
+              LOGE("Failed to remove vector: %s", result.error.what());
+              throw jsi::JSError(runtime, "Error removing: " +
+                                              std::string(result.error.what()));
+            }
+
+            return jsi::Value::undefined();
+          });
+    }
+
+    if (methodName == "update") {
+      return jsi::Function::createFromHostFunction(
+          runtime, name, 2,
+          [this](jsi::Runtime &runtime, const jsi::Value &thisValue,
+                 const jsi::Value *arguments, size_t count) -> jsi::Value {
+            if (count < 2)
+              throw jsi::JSError(runtime,
+                                 "update expects 2 arguments: key, vector");
+            if (!_index)
+              throw jsi::JSError(runtime, "VectorIndex has been deleted.");
+
+            default_key_t key =
+                static_cast<default_key_t>(arguments[0].asNumber());
+            auto [vecData, vecSize] = getRawVector(runtime, arguments[1]);
+
+            if (vecSize != _index->dimensions()) {
+              throw jsi::JSError(runtime, "Incorrect dimension for update.");
+            }
+
+            // Remove existing if it exists (USearch remove is safe if key
+            // doesn't exist? Usually returns error, but we want to ensure we
+            // can 'upsert')
+            _index->remove(key);
+
+            auto result = _index->add(key, vecData);
+            if (!result) {
+              LOGE("Failed to update vector: %s", result.error.what());
+              throw jsi::JSError(runtime, "Error updating: " +
+                                              std::string(result.error.what()));
+            }
+
+            return jsi::Value::undefined();
+          });
+    }
+
     if (methodName == "search") {
       return jsi::Function::createFromHostFunction(
           runtime, name, 2,
@@ -276,8 +341,28 @@ public:
             auto [queryData, querySize] = getRawVector(runtime, arguments[0]);
             int resultsCount = static_cast<int>(arguments[1].asNumber());
 
-            LOGD("search called: querySize=%zu, resultsCount=%d", querySize,
-                 resultsCount);
+            bool hasFilter = false;
+            std::unordered_set<default_key_t> allowedSet;
+
+            if (count > 2 && arguments[2].isObject()) {
+              jsi::Object options = arguments[2].asObject(runtime);
+              if (options.hasProperty(runtime, "allowedKeys")) {
+                jsi::Value keysValue =
+                    options.getProperty(runtime, "allowedKeys");
+                if (keysValue.isObject() &&
+                    keysValue.asObject(runtime).isArray(runtime)) {
+                  jsi::Array keysArray =
+                      keysValue.asObject(runtime).asArray(runtime);
+                  size_t size = keysArray.size(runtime);
+                  allowedSet.reserve(size);
+                  for (size_t i = 0; i < size; ++i) {
+                    allowedSet.insert(static_cast<default_key_t>(
+                        keysArray.getValueAtIndex(runtime, i).asNumber()));
+                  }
+                  hasFilter = true;
+                }
+              }
+            }
 
             if (querySize != _index->dimensions()) {
               LOGE("Search dimension mismatch: expected %zu, got %zu",
@@ -285,8 +370,16 @@ public:
               throw jsi::JSError(runtime, "Query vector dimension mismatch.");
             }
 
-            auto results = _index->search(queryData, resultsCount);
-            LOGD("search found %zu results", results.size());
+            Index::search_result_t results;
+            if (hasFilter) {
+              results = _index->search_filtered(
+                  (f32_t *)queryData, resultsCount,
+                  [&](Index::member_cref_t const &member) noexcept {
+                    return allowedSet.count(member.key) > 0;
+                  });
+            } else {
+              results = _index->search(queryData, resultsCount);
+            }
 
             jsi::Array returnArray(runtime, results.size());
             for (size_t i = 0; i < results.size(); ++i) {
@@ -454,6 +547,8 @@ inline void install(jsi::Runtime &rt) {
             int dims = static_cast<int>(args[0].asNumber());
 
             bool quantized = false;
+            metric_kind_t metric_kind = metric_kind_t::cos_k;
+
             if (count > 1 && args[1].isObject()) {
               jsi::Object options = args[1].asObject(rt);
               if (options.hasProperty(rt, "quantization")) {
@@ -463,10 +558,22 @@ inline void install(jsi::Runtime &rt) {
                 if (q == "i8")
                   quantized = true;
               }
+              if (options.hasProperty(rt, "metric")) {
+                std::string m =
+                    options.getProperty(rt, "metric").asString(rt).utf8(rt);
+                if (m == "l2sq")
+                  metric_kind = metric_kind_t::l2sq_k;
+                else if (m == "ip")
+                  metric_kind = metric_kind_t::ip_k;
+                else if (m == "hamming")
+                  metric_kind = metric_kind_t::hamming_k;
+                else if (m == "jaccard")
+                  metric_kind = metric_kind_t::jaccard_k;
+              }
             }
 
-            auto indexInstance =
-                std::make_shared<VectorIndexHostObject>(dims, quantized);
+            auto indexInstance = std::make_shared<VectorIndexHostObject>(
+                dims, quantized, metric_kind);
             return jsi::Object::createFromHostObject(rt, indexInstance);
           }));
 

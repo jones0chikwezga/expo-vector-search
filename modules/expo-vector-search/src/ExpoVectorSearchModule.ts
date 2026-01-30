@@ -1,5 +1,5 @@
 import { requireNativeModule } from 'expo';
-import { SearchResult, Vector } from './ExpoVectorSearch.types';
+import { DistanceMetric, SearchResult, Vector } from './ExpoVectorSearch.types';
 
 // The native module is loaded to ensure JSI installation occurs (OnCreate)
 requireNativeModule('ExpoVectorSearch');
@@ -9,6 +9,11 @@ export type QuantizationMode = 'f32' | 'f16' | 'i8';
 
 export interface VectorIndexOptions {
   quantization?: QuantizationMode;
+  metric?: DistanceMetric;
+}
+
+export interface SearchOptions {
+  allowedKeys?: number[] | Int32Array | Uint32Array;
 }
 
 // C++ HostObject Interface (Index Instance)
@@ -17,7 +22,13 @@ interface VectorIndexHostObject {
   count: number;
   memoryUsage: number;
   add(key: number, vector: Vector): void;
-  search(vector: Vector, count: number): SearchResult[];
+  remove(key: number): void;
+  update(key: number, vector: Vector): void;
+  search(
+    vector: Vector,
+    count: number,
+    options?: SearchOptions
+  ): SearchResult[];
   save(path: string): void;
   load(path: string): void;
   delete(): void;
@@ -99,13 +110,39 @@ export class VectorIndex {
   }
 
   /**
+   * Removes a vector from the index.
+   * @param key The unique numeric identifier of the vector to remove.
+   * @throws Error if the key is not found or removal fails.
+   */
+  remove(key: number): void {
+    this._index.remove(key);
+  }
+
+  /**
+   * Updates an existing vector in the index.
+   * This is equivalent to removing the old vector and adding a new one.
+   * @param key The unique numeric identifier.
+   * @param vector The new vector data.
+   * @throws Error if dimensions mismatch or update fails.
+   */
+  update(key: number, vector: Vector): void {
+    this._index.update(key, vector);
+  }
+
+  /**
    * Performs an Approximate Nearest Neighbor (ANN) search.
    * @param vector The query vector.
    * @param count The number of nearest neighbors to return.
-   * @returns An array of results containing keys and distances (cosine distance).
+   * @param options Optional SearchOptions (e.g., allowedKeys for filtering).
+   * @returns An array of SearchResult objects (key and distance).
+   * @throws Error if dimensions mismatch or search fails.
    */
-  search(vector: Vector, count: number): SearchResult[] {
-    return this._index.search(vector, count);
+  search(
+    vector: Vector,
+    count: number,
+    options?: SearchOptions
+  ): SearchResult[] {
+    return this._index.search(vector, count, options);
   }
 
   /**

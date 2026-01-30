@@ -34,6 +34,7 @@ Benchmark results obtained using **Release builds** on physical devices (1,000 v
 - **Production-Grade Quantization**: Support for Int8 quantization to reduce memory footprint by up to 4x with minimal impact on search accuracy.
 - **Disk Persistence**: Built-in methods to save and load vector indices to/from the local file system.
 - **Memory Safety**: Strict buffer alignment checks and type validation to ensure native stability.
+- **Extended Distance Metrics**: Support for Cosine, Euclidean (L2), Inner Product, Hamming (binary), and Jaccard distances.
 - **Explicit Memory Management**: Provision for deterministic resource release via the `delete()` method.
 
 ## Installation
@@ -81,6 +82,17 @@ The module is designed for performance-critical applications where latency and b
 
 ## API Reference
 
+### useVectorSearch (React Hook)
+
+A wrapper hook that manages the lifecycle of a `VectorIndex`, handling creation and cleanup automatically.
+
+```typescript
+const { index, search, add } = useVectorSearch(384, {
+  quantization: 'i8',
+  metric: 'cos'
+});
+```
+
 ### VectorIndex
 
 The primary class for managing a vector collection.
@@ -89,6 +101,7 @@ The primary class for managing a vector collection.
 Initializes a new vector index.
 - `dimensions`: The dimensionality of the vectors (e.g., 128, 384, 768).
 - `options.quantization`: Scaling mode (`'f32'` or `'i8'`). Use `'i8'` for significant memory savings.
+- `options.metric`: Distance metric calculation (`'cos'`, `'l2sq'`, `'ip'`, `'hamming'`, `'jaccard'`). Default is `'cos'`.
 
 #### `add(key: number, vector: Float32Array): void`
 Inserts a vector into the index.
@@ -100,11 +113,21 @@ High-performance batch insertion. Significantly reduces JSI overhead by processi
 - `keys`: An `Int32Array` of unique identifiers.
 - `vectors`: A single `Float32Array` containing all vectors concatenated (must match `keys.length * dimensions`).
 
-#### `search(vector: Float32Array, count: number): SearchResult[]`
+#### `search(vector: Float32Array, count: number, options?: SearchOptions): SearchResult[]`
 Performs an ANN search.
 - `vector`: The query embedding.
 - `count`: Number of nearest neighbors to retrieve.
+- `options.allowedKeys`: Optional array of keys to restrict the search to (filtering).
 - **Returns**: An array of `SearchResult` objects `{ key: number, distance: number }`.
+
+#### `remove(key: number): void`
+Removes a vector from the index.
+- `key`: The unique numeric identifier of the vector to remove.
+
+#### `update(key: number, vector: Float32Array): void`
+Updates an existing vector in the index (upsert operation).
+- `key`: The unique numeric identifier.
+- `vector`: The new vector data.
 
 #### `save(path: string): void`
 Serializes the current state of the index to a specified file path.
@@ -189,12 +212,12 @@ While **Int8 Quantization** provides significant memory savings (~44% total inde
 This performance gap is a known characteristic of the current version. The Int8 path requires a conversion from `float` to `int8` for every dimension, which is not yet fully vectorized in the Android build.
 
 ### Future Roadmap
-- [ ] **Dynamic CRUD**: Implement `remove(key)` and `update(key, vector)` in the JSI layer.
-- [ ] **Metadata Filtering**: Support for predicates during ANN search (filters).
+- [x] **Dynamic CRUD Support**: Implemented `remove(key)` and `update(key, vector)`.
+- [x] **Metadata Filtering**: Support for `allowedKeys` filtering during search.
 - [ ] **Architecture-Specific SIMD**: Enable NEON/SVE optimizations for Android builds.
 - [ ] **Hybrid Search**: Integration with a keywords-based engine for hybrid results.
 - [ ] **Background Indexing**: True multithreaded ingestion to avoid JS bridge/thread locks.
-- [ ] **Extended Distance Metrics**: Support for L2, IP, and other USearch-native metrics.
+- [x] **Extended Distance Metrics**: Support for L2, IP, Hamming, and Jaccard.
 - [ ] **USearch Upgrade**: Migration to `v2.23.0+` for enhanced performance.
 - [ ] **Incremental Persistence**: Local storage optimizations for large datasets.
 
